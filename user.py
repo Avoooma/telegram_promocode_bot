@@ -12,12 +12,11 @@ from keyboards import main_menu, cancel_kb
 router = Router()
 STEAM_TRADE_RE = re.compile(r"https://steamcommunity\.com/tradeoffer/new/\?partner=\d+&token=[\w-]+")
 
-# Всі стани в одному класі для зручності
+# Всі стани в одному класі
 class UserStates(StatesGroup):
     waiting_promo = State()
     waiting_trade = State()
-    waiting_amount = State() # Очікування вибору суми (50, 150, 300)
-    waiting_item = State()   # Очікування назви скіна
+    waiting_amount = State() # Тепер це фінальний крок для заявки
 
 @router.message(CommandStart())
 async def start(message: Message):
@@ -69,7 +68,7 @@ async def promo_process(message: Message, state: FSMContext):
     p = db.get_promocode(message.text)
     
     if not p or p['uses_left'] <= 0 or db.is_promo_used_by_user(u['id'], p['id']):
-        await message.answer("❌ Невірний, використаний або чужий код.")
+        await message.answer("❌ Невірний, використаний або вже активований код.")
     else:
         new_bal = db.use_promocode(u['id'], p)
         await message.answer(f"✅ +{p['reward']} монет! Баланс: {new_bal}")
@@ -98,7 +97,7 @@ async def trade_process(message: Message, state: FSMContext):
     else:
         await message.answer("❌ Невірний формат. Спробуй ще раз.")
 
-# --- ЗАЯВКА НА СКІН (НОВЕ) ---
+# --- ЗАЯВКА НА СКІН (СПРОЩЕНО) ---
 @router.message(F.text == "📦 Заявка на скін")
 async def request_start(message: Message, state: FSMContext):
     user = db.get_user_by_telegram_id(message.from_user.id)
@@ -119,13 +118,13 @@ async def request_start(message: Message, state: FSMContext):
     await message.answer("💰 Обери суму скіна (монети будуть списані одразу):", reply_markup=kb)
 
 @router.message(UserStates.waiting_amount)
-async def request_amount(message: Message, state: FSMContext):
+async def request_final(message: Message, state: FSMContext):
     if message.text == "❌ Скасувати":
         await state.clear()
         await message.answer("Скасовано", reply_markup=main_menu())
         return
 
-    # Витягуємо число з тексту "50 монет"
+    # Витягуємо число з тексту (наприклад "50")
     try:
         amount = int(message.text.split()[0])
         user = db.get_user_by_telegram_id(message.from_user.id)
@@ -133,30 +132,21 @@ async def request_amount(message: Message, state: FSMContext):
         if user['coins'] < amount:
             await message.answer(f"❌ Недостатньо монет! Твій баланс: {user['coins']}")
             await state.clear()
-            await message.answer("Повернення до меню", reply_markup=main_menu())
+            await message.answer("Головне меню", reply_markup=main_menu())
             return
 
-        await state.update_data(chosen_amount=amount)
-        await state.set_state(UserStates.waiting_item)
-        await message.answer(f"✅ Вибрано суму: {amount}\n📦 Тепер напиши назву скіна, який ти хочеш:", reply_markup=cancel_kb())
+        # Назва скіна тепер генерується автоматично
+        item_name = f"Скін за {amount} монет"
+        
+        # Створюємо заявку (вона автоматично спише монети через database.py)
+        db.create_request(user["id"], item_name, amount)
+        
+        await state.clear()
+        await message.answer(
+            f"✅ Заявку на <b>{item_name}</b> прийнято!\n"
+            f"💰 Списано {amount} монет. Очікуй відповіді адміна.", 
+            reply_markup=main_menu(), 
+            parse_mode="HTML"
+        )
     except:
         await message.answer("Будь ласка, обери суму кнопкою!")
-
-@router.message(UserStates.waiting_item)
-async def request_final(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("Скасовано", reply_markup=main_menu())
-        return
-
-    data = await state.get_data()
-    amount = data['chosen_amount']
-    item_name = message.text
-    
-    user = db.get_user_by_telegram_id(message.from_user.id)
-    
-    # Створюємо заявку в базі (вона ж спише монети, якщо ти оновив database.py)
-    db.create_request(user["id"], item_name, amount)
-    
-    await state.clear()
-    await message.answer(f"✅ Заявку на скін <b>{item_name}</b> прийнято!\n💰 Списано {amount} монет. Очікуй відповіді адміна.", reply_markup=main_menu(), parse_mode="HTML")
