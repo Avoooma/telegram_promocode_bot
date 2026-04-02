@@ -93,3 +93,10 @@ def get_pending_requests():
     # Запит із приєднанням даних користувача (users)
     res = supabase.table("requests").select("*, users(*)").eq("status", "pending").execute()
     return res.data
+
+def delete_promocode(promo_id):
+    # Спочатку видаляємо всі записи про використання цього коду (інакше база не дасть видалити сам код)
+    supabase.table("user_promocodes").delete().eq("promocode_id", promo_id).execute()
+    # Тепер видаляємо сам промокод
+    res = supabase.table("promocodes").delete().eq("id", promo_id).execute()
+    return len(res.data) > 0
