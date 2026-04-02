@@ -1,3 +1,4 @@
+import os
 import re
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -7,7 +8,9 @@ from aiogram.fsm.state import State, StatesGroup
 
 import database as db
 from keyboards import main_menu, cancel_kb
-from config import ADMIN_IDS
+
+# Отримуємо ID адмінів з налаштувань Railway
+ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 
 router = Router()
 
