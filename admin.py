@@ -29,7 +29,7 @@ async def cmd_admin(message: Message):
 async def promo_step_1(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id): return
     await state.set_state(AdminPromoState.waiting_code)
-    await message.answer("🎟 Введите текст промокода (например: GIFT2024):", reply_markup=cancel_kb())
+    await message.answer("🎟 Введите текст промокоду (например: GIFT2024):", reply_markup=cancel_kb())
 
 @router.message(AdminPromoState.waiting_code)
 async def promo_step_2(message: Message, state: FSMContext):
@@ -86,7 +86,6 @@ async def show_admin_requests(message: Message):
         if history:
             h_list = []
             for h in history:
-                # ФОРМАТИРУЕМ ДАТУ (ЕСЛИ ОНИ ЕСТЬ)
                 h_date = h['date'][:10] if h.get('date') else ""
                 h_list.append(f"• {h['type']}: {h['amount']}💰 ({h_date})")
             history_text = "\n".join(h_list)
@@ -123,7 +122,6 @@ async def handle_request_callback(callback: CallbackQuery):
     
     if res.data:
         status_text = "✅ ПОДТВЕРДЖЕНО" if action == "approve" else "❌ ОТКЛОНЕНО"
-        # Получаем старый текст и добавляем статус
         current_text = callback.message.text
         await callback.message.edit_text(current_text + f"\n\n<b>Рішення: {status_text}</b>", parse_mode="HTML")
         await callback.answer(f"Заявку №{req_id} обновлено")
@@ -131,7 +129,7 @@ async def handle_request_callback(callback: CallbackQuery):
         await callback.answer("Ошибка обновления статуса")
 
 # --- УДАЛЕНИЕ И СПИСОК ПРОМОКОДОВ ---
-@router.message(F.text == "📋 Всё промокоды")
+@router.message(F.text == "📋 Всё промокоди")
 async def list_promos(message: Message):
     if not is_admin(message.from_user.id): return
     promos = db.list_all_promocodes()
@@ -163,10 +161,18 @@ async def process_del_promo(callback: CallbackQuery):
 @router.message(F.text == "👤 Пользователь")
 async def list_users(message: Message):
     if not is_admin(message.from_user.id): return
+    
     users = db.get_top_users(30)
+    if not users:
+        await message.answer("📭 Пользователей пока нету.")
+        return
+
     text = "👤 <b>Пользователи (Топ-30):</b>\n\n"
     for u in users:
-        text += f"<code>{u['telegram_id']}</code> | @{u['username']} | {u['coins']}💰\n"
+        # Додаємо обробку, якщо раптом username порожній
+        uname = f"@{u['username']}" if u.get('username') and u['username'] != "None" else "Anon"
+        text += f"<code>{u['telegram_id']}</code> | {uname} | {u.get('coins', 0)}💰\n"
+    
     await message.answer(text, parse_mode="HTML")
 
 @router.message(F.text == "🔙 Выйти из админ панели")
