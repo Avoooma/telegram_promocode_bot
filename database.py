@@ -22,10 +22,12 @@ def get_user_by_telegram_id(tg_id):
     return res.data[0] if res.data else None
 
 def update_coins(user_id, delta):
+    # Отримуємо поточний баланс за внутрішнім ID бази
     res = supabase.table("users").select("coins").eq("id", user_id).execute()
     if not res.data:
         return 0
     new_balance = res.data[0]["coins"] + delta
+    # Оновлюємо баланс
     supabase.table("users").update({"coins": new_balance}).eq("id", user_id).execute()
     return new_balance
 
@@ -55,15 +57,23 @@ def create_promocode(code, reward, uses):
         return False
 
 def use_promocode(user_id, promo):
-    # Фіксуємо використання
-    supabase.table("used_promos").insert({"user_id": user_id, "promo_id": promo["id"]}).execute()
-    # Мінусуємо кількість спроб
-    supabase.table("promocodes").update({"uses_left": promo["uses_left"] - 1}).eq("id", promo["id"]).execute()
-    # Даємо монети
+    # ФІКС: Використовуємо твою назву таблиці user_promocodes
+    supabase.table("user_promocodes").insert({
+        "user_id": user_id, 
+        "promo_id": promo["id"]
+    }).execute()
+    
+    # Мінусуємо кількість спроб у промокоду
+    supabase.table("promocodes").update({
+        "uses_left": promo["uses_left"] - 1
+    }).eq("id", promo["id"]).execute()
+    
+    # Нараховуємо монети користувачеві
     return update_coins(user_id, promo["reward"])
 
 def is_promo_used_by_user(user_id, promo_id):
-    res = supabase.table("used_promos").select("*").eq("user_id", user_id).eq("promo_id", promo_id).execute()
+    # ФІКС: Використовуємо твою назву таблиці user_promocodes
+    res = supabase.table("user_promocodes").select("*").eq("user_id", user_id).eq("promo_id", promo_id).execute()
     return len(res.data) > 0
 
 # --- РОБОТА ІЗ ЗАЯВКАМИ ---
@@ -71,6 +81,8 @@ def is_promo_used_by_user(user_id, promo_id):
 def create_request(user_id, item_name, cost):
     data = {"user_id": user_id, "item_name": item_name, "cost": cost, "status": "pending"}
     res = supabase.table("requests").insert(data).execute()
+    # Після створення заявки віднімаємо монети
+    update_coins(user_id, -cost)
     return res.data[0]
 
 def get_user_requests(user_id):
@@ -78,6 +90,6 @@ def get_user_requests(user_id):
     return res.data
 
 def get_pending_requests():
-    # Запит із приєднанням даних користувача, щоб адмін бачив нікнейми
+    # Запит із приєднанням даних користувача
     res = supabase.table("requests").select("*, users(*)").eq("status", "pending").execute()
     return res.data
