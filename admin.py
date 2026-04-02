@@ -24,7 +24,7 @@ async def cmd_admin(message: Message):
     if not is_admin(message.from_user.id): return
     await message.answer("👑 Адмін панель", reply_markup=admin_menu())
 
-# --- СТВОРЕННЯ ПРОМОКОДУ (ВИПРАВЛЕНО) ---
+# --- СТВОРЕННЯ ПРОМОКОДУ ---
 @router.message(F.text == "➕ Промокод")
 async def promo_step_1(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id): return
@@ -33,7 +33,7 @@ async def promo_step_1(message: Message, state: FSMContext):
 
 @router.message(AdminPromoState.waiting_code)
 async def promo_step_2(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати" or message.text == "❌ Отменить":
+    if message.text in ["❌ Скасувати", "❌ Отменить"]:
         await state.clear()
         await message.answer("Скасовано.", reply_markup=admin_menu())
         return
@@ -57,16 +57,15 @@ async def promo_step_final(message: Message, state: FSMContext):
         return
     
     data = await state.get_data()
-    # Викликаємо функцію з database.py
     success = db.create_promocode(data['code'], data['reward'], int(message.text))
     
     await state.clear()
     if success:
-        await message.answer(f"✅ Промокод {data['code']} створено!", reply_markup=admin_menu())
+        await message.answer(f"✅ Промокод <code>{data['code']}</code> створено!", parse_mode="HTML", reply_markup=admin_menu())
     else:
         await message.answer("❌ Помилка! Можливо такий код вже існує.", reply_markup=admin_menu())
 
-# --- ЗАЯВКИ: ПРИЙНЯТИ / ВІДХИЛИТИ (ВИПРАВЛЕНО) ---
+# --- ЗАЯВКИ: ПРИЙНЯТИ / ВІДХИЛИТИ ---
 @router.message(F.text == "📥 Заявки")
 async def show_admin_requests(message: Message):
     if not is_admin(message.from_user.id): return
@@ -93,7 +92,6 @@ async def show_admin_requests(message: Message):
             f"📊 <b>Історія:</b>\n{history_text}"
         )
         
-        # Переконайся, що callback_data не занадто довга
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="✅ Прийняти", callback_data=f"approve_{r['id']}"),
@@ -111,8 +109,6 @@ async def handle_request_callback(callback: CallbackQuery):
     req_id = int(parts[1])
     
     new_status = "approved" if action == "approve" else "rejected"
-    
-    # Пряме оновлення через supabase
     res = db.supabase.table("requests").update({"status": new_status}).eq("id", req_id).execute()
     
     if res.data:
@@ -122,7 +118,37 @@ async def handle_request_callback(callback: CallbackQuery):
     else:
         await callback.answer("Помилка бази даних")
 
-# --- ІНШІ ФУНКЦІЇ ---
+# --- РОБОТА З ПРОМОКОДАМИ (СПИСОК ТА ВИДАЛЕННЯ) ---
+@router.message(F.text.contains("промокод"))
+async def list_promos(message: Message):
+    if not is_admin(message.from_user.id): return
+    if "➕" in message.text: return 
+    
+    promos = db.list_all_promocodes()
+    if not promos:
+        await message.answer("📭 Промокодів немає.")
+        return
+
+    await message.answer("📋 <b>Список промокодів:</b>", parse_mode="HTML")
+    for p in promos:
+        text = f"🎟 <code>{p['code']}</code> | {p['reward']}💰\n🔢 Залишилось: {p['uses_left']}"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Видалити", callback_data=f"del_promo_{p['id']}")]
+        ])
+        await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data.startswith("del_promo_"))
+async def process_del_promo(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id): return
+    
+    promo_id = int(callback.data.split("_")[2])
+    if db.delete_promocode(promo_id):
+        await callback.answer("✅ Промокод видалено")
+        await callback.message.delete()
+    else:
+        await callback.answer("❌ Помилка видалення")
+
+# --- КОРИСТУВАЧІ ---
 @router.message(F.text.contains("Пользовател"))
 async def list_users(message: Message):
     if not is_admin(message.from_user.id): return
@@ -132,17 +158,6 @@ async def list_users(message: Message):
         name = f"@{u['username']}" if u.get('username') else "Anon"
         text += f"<code>{u['telegram_id']}</code> | {name} | {u.get('coins', 0)}💰\n"
     await message.answer(text, parse_mode="HTML")
-
-@router.message(F.text.contains("промокод"))
-async def list_promos(message: Message):
-    if not is_admin(message.from_user.id): return
-    if "➕" in message.text: return # Пропускаємо кнопку створення
-    
-    promos = db.list_all_promocodes()
-    for p in promos:
-        text = f"🎟 <code>{p['code']}</code> | {p['reward']}💰 | Залишилось: {p['uses_left']}"
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🗑 Видалити", callback_data=f"del_promo_{p['id']}")]])
-        await message.answer(text, reply_markup=kb)
 
 @router.message(F.text == "🔙 Вийти з адмін панелі")
 async def exit_admin(message: Message):
