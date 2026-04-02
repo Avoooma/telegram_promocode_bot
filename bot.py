@@ -1,30 +1,23 @@
 import asyncio
-import logging
-
+import os
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-import os
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-from handlers import user, admin
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-
+# Імпортуємо твої файли (вони мають лежати в тій же папці)
+import user
+import admin
 
 async def main():
-    bot = Bot(token=BOT_TOKEN)
+    token = os.getenv("BOT_TOKEN")
+    bot = Bot(token=token)
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Реєструємо роутери (порядок важливий: адмін перший)
+    # Реєструємо роутери з файлів user.py та admin.py
     dp.include_router(admin.router)
     dp.include_router(user.router)
 
-    logging.info("Бот запущено ✅")
-    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-
+    print("Бот запущений!")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
