@@ -1,12 +1,11 @@
 import os
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
-import asyncio
+from aiogram.filters import Command  # <-- для команд /start, /help
 
-# --- BOT_TOKEN читаємо з Environment Variable Railway ---
-BOT_TOKEN = os.getenv("BOT_TOKEN").strip()  # обов'язково .strip(), щоб прибрати пробіли
-
+BOT_TOKEN = os.getenv("BOT_TOKEN").strip()
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
@@ -18,14 +17,14 @@ builder.row(KeyboardButton(text="/request"), KeyboardButton(text="/help"))
 keyboard = builder.as_markup(resize_keyboard=True)
 
 # --- Команди ---
-@dp.message(commands=["start"])
+@dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
         f"Привіт, {message.from_user.first_name}! 👋\nЯ бот для промокодів та монет.",
         reply_markup=keyboard
     )
 
-@dp.message(commands=["help"])
+@dp.message(Command("help"))
 async def cmd_help(message: types.Message):
     help_text = (
         "/balance - показати баланс монет\n"
