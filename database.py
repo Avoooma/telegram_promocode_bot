@@ -6,6 +6,24 @@ URL = os.getenv("SUPABASE_URL")
 KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(URL, KEY)
 
+# --- НОВА ФУНКЦІЯ: ЗАПИС ТРАНЗАКЦІЇ ---
+
+def add_transaction(user_id, t_type, amount, description):
+    """
+    Додає запис у таблицю transactions.
+    user_id — це внутрішній ID користувача (int4) з таблиці users.
+    """
+    try:
+        data = {
+            "user_id": user_id,
+            "type": t_type,
+            "amount": amount,
+            "description": description
+        }
+        supabase.table("transactions").insert(data).execute()
+    except Exception as e:
+        print(f"Помилка запису транзакції: {e}")
+
 # --- РОБОТА З КОРИСТУВАЧАМИ ---
 
 def get_or_create_user(tg_id, username):
@@ -22,12 +40,10 @@ def get_user_by_telegram_id(tg_id):
     return res.data[0] if res.data else None
 
 def update_coins(user_id, delta):
-    # Отримуємо баланс
     res = supabase.table("users").select("coins").eq("id", user_id).execute()
     if not res.data:
         return 0
     new_balance = res.data[0]["coins"] + delta
-    # Оновлюємо баланс
     supabase.table("users").update({"coins": new_balance}).eq("id", user_id).execute()
     return new_balance
 
@@ -57,49 +73,55 @@ def create_promocode(code, reward, uses):
         return False
 
 def use_promocode(user_id, promo):
-    # ВИПРАВЛЕНО: назва колонки promocode_id (як у твоєму SQL)
+    # 1. Реєструємо використання коду юзером
     supabase.table("user_promocodes").insert({
         "user_id": user_id, 
         "promocode_id": promo["id"]
     }).execute()
     
-    # Зменшуємо ліміт використань
+    # 2. Зменшуємо ліміт використань самого коду
     supabase.table("promocodes").update({
         "uses_left": promo["uses_left"] - 1
     }).eq("id", promo["id"]).execute()
     
-    # Нараховуємо монети
+    # 3. ДОДАЄМО ЗАПИС В ІСТОРІЮ
+    add_transaction(user_id, "ПРОМОКОД", promo["reward"], f"Активація коду: {promo['code']}")
+    
+    # 4. Нараховуємо монети
     return update_coins(user_id, promo["reward"])
 
 def is_promo_used_by_user(user_id, promo_id):
-    # ВИПРАВЛЕНО: назва колонки promocode_id (як у твоєму SQL)
     res = supabase.table("user_promocodes").select("*").eq("user_id", user_id).eq("promocode_id", promo_id).execute()
     return len(res.data) > 0
 
 # --- РОБОТА ІЗ ЗАЯВКАМИ ---
 
 def create_request(user_id, item_name, cost):
+    # 1. Створюємо саму заявку
     data = {"user_id": user_id, "item_name": item_name, "cost": cost, "status": "pending"}
     res = supabase.table("requests").insert(data).execute()
-    # Списуємо монети одразу при створенні заявки
+    
+    # 2. ДОДАЄМО ЗАПИС ПРО СПИСАННЯ В ІСТОРІЮ
+    add_transaction(user_id, "СПИСАННЯ", -cost, f"Заявка: {item_name}")
+    
+    # 3. Списуємо монети з балансу
     update_coins(user_id, -cost)
-    return res.data[0]
+    return res.data[0] if res.data else None
 
 def get_user_requests(user_id):
     res = supabase.table("requests").select("*").eq("user_id", user_id).execute()
     return res.data
 
 def get_pending_requests():
-    # Запит із приєднанням даних користувача (users)
     res = supabase.table("requests").select("*, users(*)").eq("status", "pending").execute()
     return res.data
 
 def delete_promocode(promo_id):
-    # Спочатку видаляємо всі записи про використання цього коду (інакше база не дасть видалити сам код)
     supabase.table("user_promocodes").delete().eq("promocode_id", promo_id).execute()
-    # Тепер видаляємо сам промокод
     res = supabase.table("promocodes").delete().eq("id", promo_id).execute()
     return len(res.data) > 0
+
+# --- ІСТОРІЯ ТРАНЗАКЦІЙ ---
 
 def get_user_transactions(user_id, limit=5):
     res = supabase.table("transactions").select("*").eq("user_id", user_id).order("date", desc=True).limit(limit).execute()
