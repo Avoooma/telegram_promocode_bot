@@ -1,7 +1,7 @@
 import os
 from supabase import create_client
 
-# Railway сам підставить ці значення, якщо ти додав їх у Variables
+# Railway автоматично підставить ці дані з розділу Variables
 URL = os.getenv("SUPABASE_URL")
 KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(URL, KEY)
@@ -20,8 +20,12 @@ def get_user_by_telegram_id(tg_id):
     return res.data[0] if res.data else None
 
 def update_coins(user_id, delta):
-    user = supabase.table("users").select("coins").eq("id", user_id).execute().data[0]
-    new_balance = user["coins"] + delta
+    # Отримуємо поточний баланс
+    res = supabase.table("users").select("coins").eq("id", user_id).execute()
+    if not res.data:
+        return 0
+    new_balance = res.data[0]["coins"] + delta
+    # Оновлюємо
     supabase.table("users").update({"coins": new_balance}).eq("id", user_id).execute()
     return new_balance
 
@@ -30,11 +34,11 @@ def get_promocode(code):
     return res.data[0] if res.data else None
 
 def use_promocode(user_id, promo):
-    # Додаємо запис, що юзер використав промо
+    # Фіксуємо використання
     supabase.table("used_promos").insert({"user_id": user_id, "promo_id": promo["id"]}).execute()
-    # Зменшуємо кількість використань
+    # Мінусуємо кількість спроб у промокоду
     supabase.table("promocodes").update({"uses_left": promo["uses_left"] - 1}).eq("id", promo["id"]).execute()
-    # Нараховуємо монети
+    # Даємо монети
     return update_coins(user_id, promo["reward"])
 
 def is_promo_used_by_user(user_id, promo_id):
@@ -43,4 +47,16 @@ def is_promo_used_by_user(user_id, promo_id):
 
 def get_top_users(limit=10):
     res = supabase.table("users").select("*").order("coins", desc=True).limit(limit).execute()
+    return res.data
+
+def set_trade_link(user_id, link):
+    supabase.table("users").update({"trade_link": link}).eq("id", user_id).execute()
+
+def create_request(user_id, item_name, cost):
+    data = {"user_id": user_id, "item_name": item_name, "cost": cost, "status": "pending"}
+    res = supabase.table("requests").insert(data).execute()
+    return res.data[0]
+
+def get_user_requests(user_id):
+    res = supabase.table("requests").select("*").eq("user_id", user_id).execute()
     return res.data
