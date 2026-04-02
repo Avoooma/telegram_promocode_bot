@@ -1,7 +1,7 @@
 import os
 from supabase import create_client
 
-# Railway автоматично підставить ці дані з розділу Variables
+# Дані з Variables у Railway
 URL = os.getenv("SUPABASE_URL")
 KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(URL, KEY)
@@ -22,7 +22,7 @@ def get_user_by_telegram_id(tg_id):
     return res.data[0] if res.data else None
 
 def update_coins(user_id, delta):
-    # Отримуємо поточний баланс за внутрішнім ID бази
+    # Отримуємо баланс
     res = supabase.table("users").select("coins").eq("id", user_id).execute()
     if not res.data:
         return 0
@@ -57,23 +57,23 @@ def create_promocode(code, reward, uses):
         return False
 
 def use_promocode(user_id, promo):
-    # ФІКС: Використовуємо твою назву таблиці user_promocodes
+    # ВИПРАВЛЕНО: назва колонки promocode_id (як у твоєму SQL)
     supabase.table("user_promocodes").insert({
         "user_id": user_id, 
-        "promo_id": promo["id"]
+        "promocode_id": promo["id"]
     }).execute()
     
-    # Мінусуємо кількість спроб у промокоду
+    # Зменшуємо ліміт використань
     supabase.table("promocodes").update({
         "uses_left": promo["uses_left"] - 1
     }).eq("id", promo["id"]).execute()
     
-    # Нараховуємо монети користувачеві
+    # Нараховуємо монети
     return update_coins(user_id, promo["reward"])
 
 def is_promo_used_by_user(user_id, promo_id):
-    # ФІКС: Використовуємо твою назву таблиці user_promocodes
-    res = supabase.table("user_promocodes").select("*").eq("user_id", user_id).eq("promo_id", promo_id).execute()
+    # ВИПРАВЛЕНО: назва колонки promocode_id (як у твоєму SQL)
+    res = supabase.table("user_promocodes").select("*").eq("user_id", user_id).eq("promocode_id", promo_id).execute()
     return len(res.data) > 0
 
 # --- РОБОТА ІЗ ЗАЯВКАМИ ---
@@ -81,7 +81,7 @@ def is_promo_used_by_user(user_id, promo_id):
 def create_request(user_id, item_name, cost):
     data = {"user_id": user_id, "item_name": item_name, "cost": cost, "status": "pending"}
     res = supabase.table("requests").insert(data).execute()
-    # Після створення заявки віднімаємо монети
+    # Списуємо монети одразу при створенні заявки
     update_coins(user_id, -cost)
     return res.data[0]
 
@@ -90,6 +90,6 @@ def get_user_requests(user_id):
     return res.data
 
 def get_pending_requests():
-    # Запит із приєднанням даних користувача
+    # Запит із приєднанням даних користувача (users)
     res = supabase.table("requests").select("*, users(*)").eq("status", "pending").execute()
     return res.data
