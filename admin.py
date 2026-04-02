@@ -63,6 +63,61 @@ async def promo_step_final(message: Message, state: FSMContext):
     else:
         await message.answer("❌ Помилка при створенні.", reply_markup=admin_menu())
 
+# --- РОБОТА ІЗ ЗАЯВКАМИ (АДМІН) ---
+@router.message(F.text == "📥 Заявки")
+async def show_admin_requests(message: Message):
+    if not is_admin(message.from_user.id): return
+    
+    reqs = db.get_pending_requests()
+    if not reqs:
+        await message.answer("✅ Нових заявок на скіни немає.")
+        return
+
+    await message.answer(f"📥 <b>Список активних заявок ({len(reqs)}):</b>", parse_mode="HTML")
+    
+    for r in reqs:
+        # Supabase повертає дані юзера всередині ключа 'users' (якщо зроблено join)
+        user_data = r.get('users', {})
+        username = user_data.get('username', 'Unknown')
+        trade = user_data.get('trade_link', 'Не вказано')
+        
+        text = (
+            f"📦 <b>Заявка №{r['id']}</b>\n"
+            f"👤 Юзер: @{username}\n"
+            f"🎮 Скін: <code>{r['item_name']}</code>\n"
+            f"💰 Ціна: {r['cost']} монет\n"
+            f"🔗 Трейд: <code>{trade}</code>"
+        )
+        
+        # Створюємо кнопки під кожну заявку
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Прийняти", callback_data=f"approve_{r['id']}"),
+                InlineKeyboardButton(text="❌ Відхилити", callback_data=f"reject_{r['id']}")
+            ]
+        ])
+        await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+@router.callback_query(F.data.startswith("approve_") | F.data.startswith("reject_"))
+async def handle_request_callback(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id): return
+    
+    data_parts = callback.data.split("_")
+    action = data_parts[0]
+    req_id = int(data_parts[1])
+    
+    new_status = "approved" if action == "approve" else "rejected"
+    
+    # Оновлюємо статус в базі
+    res = db.supabase.table("requests").update({"status": new_status}).eq("id", req_id).execute()
+    
+    if res.data:
+        status_text = "✅ ПІДТВЕРДЖЕНО" if action == "approve" else "❌ ВІДХИЛЕНО"
+        await callback.message.edit_text(callback.message.text + f"\n\n<b>Рішення: {status_text}</b>", parse_mode="HTML")
+        await callback.answer(f"Заявку №{req_id} оновлено")
+    else:
+        await callback.answer("Помилка оновлення статусу")
+
 # --- ВИДАЛЕННЯ ТА СПИСОК ПРОМОКОДІВ ---
 @router.message(F.text == "📋 Всі промокоди")
 async def list_promos(message: Message):
@@ -76,7 +131,6 @@ async def list_promos(message: Message):
     
     for p in promos:
         text = f"🎟 <code>{p['code']}</code>\n💰 Нагорода: {p['reward']}\n🔢 Залишилось: {p['uses_left']} шт."
-        # Кнопка видалення
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🗑 Видалити", callback_data=f"del_promo_{p['id']}")]
         ])
