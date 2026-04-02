@@ -6,7 +6,8 @@ from aiogram.fsm.state import State, StatesGroup
 
 import database as db
 from keyboards import admin_menu, main_menu, cancel_kb, request_actions
-from config import ADMIN_IDS
+import os
+ADMIN_IDS = [int(id) for id in os.getenv("ADMIN_IDS", "").split(",") if id]
 
 router = Router()
 
