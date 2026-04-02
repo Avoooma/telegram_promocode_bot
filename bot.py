@@ -4,7 +4,8 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from config import BOT_TOKEN
+import os
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 from handlers import user, admin
 
 logging.basicConfig(
