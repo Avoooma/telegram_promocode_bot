@@ -100,3 +100,7 @@ def delete_promocode(promo_id):
     # Тепер видаляємо сам промокод
     res = supabase.table("promocodes").delete().eq("id", promo_id).execute()
     return len(res.data) > 0
+
+def get_user_transactions(user_id, limit=5):
+    res = supabase.table("transactions").select("*").eq("user_id", user_id).order("date", desc=True).limit(limit).execute()
+    return res.data
