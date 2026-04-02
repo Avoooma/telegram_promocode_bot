@@ -1,9 +1,11 @@
-import asyncio
+import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
+import asyncio
 
-BOT_TOKEN = "твій_токен"
+# --- BOT_TOKEN читаємо з Environment Variable Railway ---
+BOT_TOKEN = os.getenv("BOT_TOKEN").strip()  # обов'язково .strip(), щоб прибрати пробіли
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -37,5 +39,4 @@ async def cmd_help(message: types.Message):
 
 # --- Старт бота ---
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(dp.start_polling(bot))
