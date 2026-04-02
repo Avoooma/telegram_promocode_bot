@@ -63,7 +63,7 @@ async def promo_step_final(message: Message, state: FSMContext):
     else:
         await message.answer("❌ Помилка при створенні.", reply_markup=admin_menu())
 
-# --- РОБОТА ІЗ ЗАЯВКАМИ (АДМІН) ---
+# --- РОБОТА ІЗ ЗАЯВКАМИ (АДМІН) + ІСТОРІЯ ---
 @router.message(F.text == "📥 Заявки")
 async def show_admin_requests(message: Message):
     if not is_admin(message.from_user.id): return
@@ -73,23 +73,34 @@ async def show_admin_requests(message: Message):
         await message.answer("✅ Нових заявок на скіни немає.")
         return
 
-    await message.answer(f"📥 <b>Список активних заявок ({len(reqs)}):</b>", parse_mode="HTML")
+    await message.answer(f"📥 <b>Активні заявки ({len(reqs)}):</b>", parse_mode="HTML")
     
     for r in reqs:
-        # Supabase повертає дані юзера всередині ключа 'users' (якщо зроблено join)
         user_data = r.get('users', {})
+        u_db_id = user_data.get('id')
         username = user_data.get('username', 'Unknown')
         trade = user_data.get('trade_link', 'Не вказано')
         
+        # ОТРИМУЄМО ІСТОРІЮ ТРАНЗАКЦІЙ (останні 3)
+        history = db.get_user_transactions(u_db_id, limit=3)
+        if history:
+            h_list = []
+            for h in history:
+                # Форматуємо дату (якщо вона є)
+                h_date = h['date'][:10] if h.get('date') else ""
+                h_list.append(f"• {h['type']}: {h['amount']}💰 ({h_date})")
+            history_text = "\n".join(h_list)
+        else:
+            history_text = "Історія транзакцій порожня."
+
         text = (
             f"📦 <b>Заявка №{r['id']}</b>\n"
             f"👤 Юзер: @{username}\n"
-            f"🎮 Скін: <code>{r['item_name']}</code>\n"
-            f"💰 Ціна: {r['cost']} монет\n"
-            f"🔗 Трейд: <code>{trade}</code>"
+            f"💰 Сума: <b>{r['cost']} монет</b>\n"
+            f"🔗 Трейд: <code>{trade}</code>\n\n"
+            f"📊 <b>Остання історія монет:</b>\n{history_text}"
         )
         
-        # Створюємо кнопки під кожну заявку
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="✅ Прийняти", callback_data=f"approve_{r['id']}"),
@@ -108,12 +119,13 @@ async def handle_request_callback(callback: CallbackQuery):
     
     new_status = "approved" if action == "approve" else "rejected"
     
-    # Оновлюємо статус в базі
     res = db.supabase.table("requests").update({"status": new_status}).eq("id", req_id).execute()
     
     if res.data:
         status_text = "✅ ПІДТВЕРДЖЕНО" if action == "approve" else "❌ ВІДХИЛЕНО"
-        await callback.message.edit_text(callback.message.text + f"\n\n<b>Рішення: {status_text}</b>", parse_mode="HTML")
+        # Отримуємо старий текст і додаємо статус
+        current_text = callback.message.text
+        await callback.message.edit_text(current_text + f"\n\n<b>Рішення: {status_text}</b>", parse_mode="HTML")
         await callback.answer(f"Заявку №{req_id} оновлено")
     else:
         await callback.answer("Помилка оновлення статусу")
