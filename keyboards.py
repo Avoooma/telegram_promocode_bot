@@ -1,49 +1,35 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
-
-# ─── Головне меню користувача ───────────────────────────────────────────────
-
-def main_menu() -> ReplyKeyboardMarkup:
+def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="💰 Баланс"), KeyboardButton(text="🎟 Промокод")],
-            [KeyboardButton(text="🏆 Топ"), KeyboardButton(text="🔗 Trade URL")],
-            [KeyboardButton(text="📦 Заявка на скін"), KeyboardButton(text="📋 Мої заявки")],
-            [KeyboardButton(text="❓ Допомога")],
+            [KeyboardButton(text="📦 Заявка на скін"), KeyboardButton(text="🔗 Trade URL")],
+            [KeyboardButton(text="🏆 Топ"), KeyboardButton(text="📋 Мої заявки")]
         ],
         resize_keyboard=True
     )
 
-
-# ─── Адмін-меню ─────────────────────────────────────────────────────────────
-
-def admin_menu() -> ReplyKeyboardMarkup:
+def admin_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="➕ Промокод"), KeyboardButton(text="📋 Всі промокоди")],
             [KeyboardButton(text="📥 Заявки"), KeyboardButton(text="👤 Користувач")],
-            [KeyboardButton(text="🗑 Видалити промокод")],
-            [KeyboardButton(text="🔙 Вийти з адмін-панелі")],
+            [KeyboardButton(text="🔙 Вийти з адмін-панелі")]
         ],
         resize_keyboard=True
     )
 
-
-# ─── Кнопки для заявки ──────────────────────────────────────────────────────
-
-def request_actions(request_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Підтвердити", callback_data=f"approve_{request_id}"),
-            InlineKeyboardButton(text="❌ Відхилити",   callback_data=f"reject_{request_id}"),
-        ]
-    ])
-
-
-# ─── Скасування (FSM) ───────────────────────────────────────────────────────
-
-def cancel_kb() -> ReplyKeyboardMarkup:
+def cancel_kb():
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="❌ Скасувати")]],
         resize_keyboard=True
+    )
+
+def request_actions(request_id):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Підтвердити", callback_data=f"approve_{request_id}")],
+            [InlineKeyboardButton(text="❌ Відхилити", callback_data=f"reject_{request_id}")]
+        ]
     )
