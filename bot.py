@@ -1,20 +1,21 @@
+import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
-from aiogram.utils import executor
 
 BOT_TOKEN = "твій_токен"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- Використовуємо Builder для кнопок ---
+# --- Кнопки ---
 builder = ReplyKeyboardBuilder()
 builder.row(KeyboardButton(text="/balance"), KeyboardButton(text="/promocode"))
 builder.row(KeyboardButton(text="/top"), KeyboardButton(text="/trade"))
 builder.row(KeyboardButton(text="/request"), KeyboardButton(text="/help"))
 keyboard = builder.as_markup(resize_keyboard=True)
 
+# --- Команди ---
 @dp.message(commands=["start"])
 async def cmd_start(message: types.Message):
     await message.answer(
@@ -34,5 +35,7 @@ async def cmd_help(message: types.Message):
     )
     await message.answer(help_text, reply_markup=keyboard)
 
+# --- Старт бота ---
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    import asyncio
+    asyncio.run(dp.start_polling(bot))
