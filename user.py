@@ -136,7 +136,7 @@ async def request_final(message: Message, state: FSMContext):
             return
 
         # Названик скина
-        item_name = f"Скін за {amount} монет"
+        item_name = f"Скин за {amount} монет"
         
         # делаем заявку
         db.create_request(user["id"], item_name, amount)
