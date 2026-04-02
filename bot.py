@@ -3,7 +3,7 @@ import os
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Імпортуємо твої файли (вони мають лежати в тій же папці)
+# Импортируем файлы
 import user
 import admin
 
@@ -12,11 +12,11 @@ async def main():
     bot = Bot(token=token)
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Реєструємо роутери з файлів user.py та admin.py
+    # Регестрация роутеров из файлов user.py та admin.py
     dp.include_router(admin.router)
     dp.include_router(user.router)
 
-    print("Бот запущений!")
+    print("Бот запущен!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
