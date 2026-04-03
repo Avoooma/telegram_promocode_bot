@@ -159,6 +159,6 @@ async def list_users(message: Message):
         text += f"<code>{u['telegram_id']}</code> | {name} | {u.get('coins', 0)}💰\n"
     await message.answer(text, parse_mode="HTML")
 
-@router.message(F.text == "🔙 Вийти з адмін панелі")
+@router.message(F.text.contains("Вийти") | F.text.contains("меню") | F.text.contains("админ панел"))
 async def exit_admin(message: Message):
-    await message.answer("Головне меню", reply_markup=main_menu())
+    await message.answer("Ви вийшли з адмін-панелі. Головне меню:", reply_markup=main_menu())
